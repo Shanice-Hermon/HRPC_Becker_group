@@ -1,0 +1,15 @@
+sample:
+  - "18S"
+  - "28S"
+
+max_cores: 4
+
+# Alignment parameters (valid for all BWA adaptions)
+bwa_seed_len: 25
+bwa_gap_len: 400
+bwa_match_score: 4
+bwa_mismatch_cost: 10
+bwa_gap_open_cost: 4
+bwa_gap_extend_cost: 1
+bwa_clip_cost: 20
+bwa_all_alignments: True

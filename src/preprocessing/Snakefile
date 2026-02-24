@@ -1,0 +1,134 @@
+# -*- coding: utf-8 -*-
+"""Snakemake workflow to preprocess reference data for HRPC.
+
+@author: Laura C. Kühle
+"""
+
+config: "config/config.yaml"
+
+rule all:
+    input:
+        collect(
+            "results/{sample}/ref.updated.fa",
+            sample=lookup(dpath="sample",within=config),
+        ),
+    default_target: True
+
+
+rule conversion_ref:
+    input:
+        "../../data/{sample}_rnome.fa"
+    output:
+        "results/{sample}/ref.fa"
+    params:
+        mode="ref"
+    log:
+        "log/{sample}/conversion_ref.log"
+    benchmark:
+        "benchmarks/{sample}/conversion_ref.tsv"
+    conda:
+        "envs/default.yaml"
+    script:
+        "scripts/conversion.py"
+
+
+rule conversion_qry:
+    input:
+        "results/{sample}/qry.raw.fa"
+    output:
+        "results/{sample}/qry.fa"
+    params:
+        mode="qry"
+    log:
+        "log/{sample}/conversion_modomics.log"
+    benchmark:
+        "benchmarks/{sample}/conversion_modomics.tsv"
+    conda:
+        "envs/default.yaml"
+    script:
+        "scripts/conversion.py"
+
+
+rule combine_qry:
+    input:
+        paper="../../data/{sample}_paper.fa",
+        modomics="../../data/{sample}_modomics.fa"
+    output:
+        "results/{sample}/qry.raw.fa"
+    log:
+        "log/{sample}/combine_qry.log"
+    benchmark:
+        "benchmarks/{sample}/combine_qry.tsv"
+    conda:
+        "envs/default.yaml"
+    shell:
+        "cat {input.paper} {input.modomics} > {output} 2> {log}"
+
+
+
+rule bwa_mem2_alignment:
+    input:
+        qry="results/{sample}/qry.fa",
+        index="results/{sample}/ref.bwa-mem2.bwt.2bit.64"
+    output:
+        "results/{sample}/alignment.sam"
+    params:
+        seed_len=config['bwa_seed_len'],
+        gap_len=config['bwa_gap_len'],
+        match=config['bwa_match_score'],
+        mismatch=config['bwa_mismatch_cost'],
+        gap_open=config['bwa_gap_open_cost'],
+        gap_extend=config['bwa_gap_extend_cost'],
+        clip=config['bwa_clip_cost'],
+        align_all='-a' if config['bwa_all_alignments'] else '',
+        prefix="results/{sample}/ref.bwa-mem2"
+    log:
+        'log/{sample}/bwa-mem2_alignment.log'
+    benchmark:
+        'benchmarks/{sample}/bwa-mem2_alignment.tsv'
+    threads: config['max_cores']
+    conda:
+        'envs/aligner.yaml'
+    shell:
+        'bwa-mem2 mem '
+        '-t {threads} -k {params.seed_len} -w {params.gap_len} '
+        '-A {params.match} -B {params.mismatch} -O {params.gap_open} '
+        '-E {params.gap_extend} -L {params.clip} '
+        '{params.align_all} {params.prefix} {input.qry} > {output} 2> {log}'
+
+
+rule bwa_mem2_index:
+    input:
+        "results/{sample}/ref.fa"
+    output:
+        multiext("results/{sample}/ref.bwa-mem2",
+            '.0123', '.amb', '.ann', '.bwt.2bit.64', '.pac')
+    params:
+        prefix="results/{sample}/ref.bwa-mem2"
+    log:
+        "log/{sample}/bwa-mem2_index.log"
+    benchmark:
+        "benchmarks/{sample}/bwa-mem2_index.tsv"
+    conda:
+        'envs/aligner.yaml'
+    shell:
+        'bwa-mem2 index '
+        '-p {params.prefix} {input} &> {log}'
+
+
+rule reference_update:
+    input:
+        ref="results/{sample}/ref.fa",
+        qry="results/{sample}/qry.raw.fa",
+        align="results/{sample}/alignment.sam"
+    output:
+        ref="results/{sample}/ref.updated.fa",
+        meta="results/{sample}/update_meta.tsv"
+    log:
+        "log/{sample}/update_ref_modomics.log"
+    benchmark:
+        "benchmarks/{sample}/update_ref_modomics.tsv"
+    conda:
+        "envs/default.yaml"
+    script:
+        "scripts/reference_update.py"
