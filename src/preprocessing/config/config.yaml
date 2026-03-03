@@ -5,7 +5,7 @@ sample:
 max_cores: 4
 
 # Alignment parameters (valid for all BWA adaptions)
-bwa_seed_len: 25
+bwa_seed_len: 10
 bwa_gap_len: 400
 bwa_match_score: 4
 bwa_mismatch_cost: 10
